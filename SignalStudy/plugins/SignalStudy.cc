@@ -1,0 +1,362 @@
+// -*- C++ -*-
+//
+// Package:    Plots/SignalStudy
+// Class:      SignalStudy
+// 
+/**\class SignalStudy SignalStudy.cc Plots/SignalStudy/plugins/SignalStudy.cc
+
+Description: [one line class summary]
+
+Implementation:
+[Notes on implementation]
+*/
+//
+// Original Author:  local user
+//         Created:  Sun, 29 Apr 2018 10:05:57 GMT
+//
+//
+
+#include <memory>
+#include <TROOT.h>
+#include <TChain.h>
+#include <TFile.h>
+#include <vector>
+#include <TTree.h>
+#include <TBranch.h>
+#include <TH1.h>
+#include <TH2.h>
+#include <TLorentzVector.h>
+#include <iostream>
+#include <cstring>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <map>
+#include <sys/stat.h>
+#include "TTreeReader.h"
+#include "TTreeReaderValue.h"
+#include "TTreeReaderArray.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "IIHEAnalysis.h"
+
+#ifdef __MAKECINT__
+#pragma link C++ class vector<TLorentzVector>+;
+#endif
+using namespace std;
+const float m_el = 0.000511 ;
+
+template <typename T>
+struct SortByPt
+{
+	bool operator () (const T& a, const T& b) const {
+		return a.first.Pt() > b.first.Pt();
+	}
+
+};
+
+// If the analyzer does not use TFileService, please remove
+// the template argument to the base class so the class inherits
+// from  edm::one::EDAnalyzer<> and also remove the line from
+// constructor "usesResource("TFileService");"
+// This will improve performance in multithreaded jobs.
+
+class SignalStudy : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
+	public:
+		explicit SignalStudy(const edm::ParameterSet&);
+		~SignalStudy();
+
+		static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+
+	private:
+		virtual void beginJob() override;
+		virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
+		virtual void endJob() override;
+
+		// ----------member data ---------------------------
+		string InputFile;
+		IIHEAnalysis* tree;
+		ifstream file_db1;
+		char datafile[2000];
+		edm::Service<TFileService> fs;
+
+		TH1D *h_Fill_SE_Trigger, *h_Fill_SP_Trigger, *h_Fill_Ele115_Trigger, *h_Fill_Combo_Trigger, *h_Fill_Filters, *h_Fill_ElePtEta, *h_Fill_EleVID;
+
+		TH1D *h_Fill_TauPtEta, *h_Fill_DMF;
+
+		TH1D *h_Fill_DMF_MuLoose;
+		TH1D *h_Fill_DMF_MuTight;
+		TH1D *h_Fill_DMF_MuLoose_EleLoose;
+		TH1D *h_Fill_DMF_MuLoose_EleMedium;
+		TH1D *h_Fill_DMF_MuLoose_EleTight;
+		TH1D *h_Fill_DMF_MuLoose_EleTight_LooseMVA;
+		TH1D *h_Fill_DMF_MuLoose_EleTight_MediumMVA;
+		TH1D *h_Fill_DMF_MuLoose_EleTight_TightMVA;
+
+		TH1D *h_Fill_MuonLoose3;
+		TH1D *h_Fill_MuonTight3;
+		TH1D *h_Fill_MuLoose_EleLoose;
+		TH1D *h_Fill_MuLoose_EleMedium;
+		TH1D *h_Fill_MuLoose_EleTight;
+
+		TH1D *h_Fill_MuLoose_EleTight_LooseMVA;
+		TH1D *h_Fill_MuLoose_EleTight_MediumMVA;
+		TH1D *h_Fill_MuLoose_EleTight_TightMVA;
+};
+
+//
+// constants, enums and typedefs
+//
+
+//
+// static data member definitions
+//
+
+//
+// constructors and destructor
+//
+SignalStudy::SignalStudy(const edm::ParameterSet& iConfig)
+
+{
+	//now do what ever initialization is needed
+	InputFile = iConfig.getParameter<string>("InputFile");
+
+
+}
+
+
+SignalStudy::~SignalStudy()
+{
+
+	// do anything here that needs to be done at desctruction time
+	// (e.g. close files, deallocate resources etc.)
+
+}
+
+
+//
+// member functions
+//
+
+// ------------ method called for each event  ------------
+	void
+SignalStudy::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+{
+	using namespace edm;
+
+
+	while(!file_db1.eof()) {
+		file_db1>>datafile;
+		if(file_db1.eof()) break;
+		TFile *file_in=TFile::Open(datafile);
+
+		TTree* treePtr = (TTree*) file_in->Get("IIHEAnalysis");
+		tree = new IIHEAnalysis (treePtr);
+
+
+		bool isTrigger;
+		for (int iEntry = 0; iEntry < tree->GetEntries(); iEntry++)
+		{
+
+			isTrigger=false;
+			tree->GetEntry(iEntry);
+			// trigger
+			// MET filters + PV
+			// e 
+			// tau
+
+			if(tree->trig_HLT_Ele27_WPTight_Gsf_accept)  { h_Fill_SE_Trigger->Fill(1.);}
+			if(tree->trig_HLT_Photon175_accept) { h_Fill_SP_Trigger->Fill(1.);}
+			if(tree->trig_HLT_Ele115_CaloIdVT_GsfTrkIdT_accept) { h_Fill_Ele115_Trigger->Fill(1.);}
+
+			if( tree->trig_HLT_Ele27_WPTight_Gsf_accept || tree->trig_HLT_Photon175_accept || tree->trig_HLT_Ele115_CaloIdVT_GsfTrkIdT_accept ) {isTrigger=true; h_Fill_Combo_Trigger->Fill(1);}
+
+			if(!isTrigger) continue;
+			if(!tree->trig_Flag_goodVertices_accept) continue;
+			if(!tree->trig_Flag_globalTightHalo2016Filter_accept) continue;
+			if(!tree->trig_Flag_HBHENoiseFilter_accept) continue;
+			if(!tree->trig_Flag_HBHENoiseIsoFilter_accept) continue;
+			if(!tree->trig_Flag_EcalDeadCellTriggerPrimitiveFilter_accept) continue;
+			if(!tree->trig_Flag_BadPFMuonFilter_accept) continue;
+			if(!tree->trig_Flag_BadChargedCandidateFilter_accept) continue;
+
+			h_Fill_Filters->Fill(1);
+
+			// electron 
+			vector<pair<TLorentzVector, unsigned int>> ElePairs;
+			ElePairs.clear();
+
+			for (unsigned int dau1index = 0; dau1index < tree->gsf_et->size(); dau1index++){
+				float ET1 = tree->gsf_caloEnergy->at(dau1index)*sin(2.*atan(exp(-1.*tree->gsf_eta->at(dau1index)))) ;
+				if( ET1 < 0 ) continue;
+				TLorentzVector DauEle1 ;
+				DauEle1.SetPtEtaPhiM(ET1, tree->gsf_eta->at(dau1index), tree->gsf_phi->at(dau1index),m_el);
+				pair<TLorentzVector, unsigned int> tmpPair;
+				tmpPair.first = DauEle1; tmpPair.second = dau1index;
+				ElePairs.push_back(tmpPair);
+			}
+			std::sort(ElePairs.begin(), ElePairs.end(),SortByPt<pair<TLorentzVector,unsigned int>>());
+			////// cuts
+			bool isElePtEta;
+			isElePtEta= false;
+if( ElePairs.size() == 0) continue;
+			if( ElePairs.at(0).first.Pt() > 50.  && fabs(tree->gsf_sc_eta->at(ElePairs.at(0).second)) < 2.5 ) { isElePtEta=true; h_Fill_ElePtEta->Fill(1);}
+			if(!isElePtEta) continue;
+
+			if(!(tree->gsf_VIDHEEP7->at(ElePairs.at(0).second))) continue;
+			h_Fill_EleVID->Fill(1);
+
+			// DR separation with taus and picking highest pt tau
+			vector<pair<TLorentzVector, unsigned int>> TauPairs;
+			TauPairs.clear();
+
+			for (unsigned int dau2index = 0; dau2index < tree->tau_px->size(); dau2index++){
+
+				if(tree->tau_pt->at(dau2index) <= 0. ) continue;
+
+				TLorentzVector DauTau1;
+				DauTau1.SetPxPyPzE(tree->tau_px->at(dau2index), tree->tau_py->at(dau2index), tree->tau_pz->at(dau2index),tree->tau_energy->at(dau2index));
+				if(!(ElePairs.at(0).first.DeltaR(DauTau1) > 0.5)) continue;
+				pair<TLorentzVector, unsigned int> tmpPair1;
+				tmpPair1.first = DauTau1; tmpPair1.second = dau2index;
+				TauPairs.push_back(tmpPair1);
+			}
+			std::sort(TauPairs.begin(), TauPairs.end(),SortByPt<pair<TLorentzVector,unsigned int>>());
+if( TauPairs.size() == 0) continue;
+
+
+			if(!(TauPairs.at(0).first.Pt() > 30. && fabs(TauPairs.at(0).first.Eta()) < 2.3)) continue; h_Fill_TauPtEta->Fill(1.);
+
+			bool isDMF, isEleLoose, isEleTight, isMuonLoose, isMuonTight, isEleMedium;
+			isDMF = isEleLoose = isEleTight = isMuonLoose = isMuonTight = isEleMedium = false;
+
+			bool isLooseMVA(false), isMediumMVA(false), isTightMVA(false);
+			bool isLooseMVANew(false), isMediumMVANew(false), isTightMVANew(false);
+
+			if( tree->tau_decayModeFinding->at( TauPairs.at(0).second) > 0.5 ) {isDMF = true; h_Fill_DMF->Fill(1.);}
+			// discrimination against e/mu
+			if(tree->tau_againstMuonLoose3->at(TauPairs.at(0).second) > 0.5) { isMuonLoose = true; h_Fill_MuonLoose3->Fill(1.);}
+			if(tree->tau_againstMuonTight3->at(TauPairs.at(0).second) > 0.5) { isMuonTight = true; h_Fill_MuonTight3->Fill(1.);}  
+
+			if((tree->tau_againstElectronTightMVA6->at(TauPairs.at(0).second) > 0.5)) {isEleTight = true;}
+			if((tree->tau_againstElectronMediumMVA6->at(TauPairs.at(0).second) > 0.5)) {isEleMedium= true;}
+			if((tree->tau_againstElectronLooseMVA6->at(TauPairs.at(0).second) > 0.5)) {isEleLoose = true;}
+
+			if(tree->tau_byLooseIsolationMVArun2v1DBoldDMwLT->at(TauPairs.at(0).second) > 0.5) { isLooseMVA = true;}
+			if(tree->tau_byMediumIsolationMVArun2v1DBoldDMwLT->at(TauPairs.at(0).second) > 0.5) {isMediumMVA = true;}
+			if(tree->tau_byTightIsolationMVArun2v1DBoldDMwLT->at(TauPairs.at(0).second) > 0.5) {isTightMVA = true;}
+
+			if(tree->tau_byLooseIsolationMVArun2v1DBnewDMwLT->at(TauPairs.at(0).second) > 0.5) { isLooseMVANew = true;}
+			if(tree->tau_byMediumIsolationMVArun2v1DBnewDMwLT->at(TauPairs.at(0).second) > 0.5) {isMediumMVANew = true;}
+			if(tree->tau_byTightIsolationMVArun2v1DBnewDMwLT->at(TauPairs.at(0).second) > 0.5) {isTightMVANew = true;}
+
+			// new combinations
+
+			// for old DMF
+			if( isDMF && isMuonLoose) {h_Fill_DMF_MuLoose->Fill(1.);}
+			if( isDMF && isMuonTight) {h_Fill_DMF_MuTight->Fill(1.);}
+			// old DM+ Loose Muon
+			if( isDMF && isMuonLoose && isEleLoose) { h_Fill_DMF_MuLoose_EleLoose->Fill(1.);}
+			if( isDMF && isMuonLoose && isEleMedium) { h_Fill_DMF_MuLoose_EleMedium->Fill(1.);}
+			if( isDMF && isMuonLoose && isEleTight) { h_Fill_DMF_MuLoose_EleTight->Fill(1.);}
+
+			// old DM+ Loose Muon+ Tight ELe
+			if( isDMF && isMuonLoose && isEleTight && isLooseMVA) {  h_Fill_DMF_MuLoose_EleTight_LooseMVA->Fill(1.);}
+			if( isDMF && isMuonLoose && isEleTight && isMediumMVA) {  h_Fill_DMF_MuLoose_EleTight_MediumMVA->Fill(1.);}
+			if( isDMF && isMuonLoose && isEleTight && isTightMVA) {  h_Fill_DMF_MuLoose_EleTight_TightMVA->Fill(1.);}
+
+
+			// New DMF conbinations
+			if(isMuonLoose && isEleLoose) { h_Fill_MuLoose_EleLoose->Fill(1.);}
+			if(isMuonLoose && isEleMedium) { h_Fill_MuLoose_EleMedium->Fill(1.);}
+			if(isMuonLoose && isEleTight) { h_Fill_MuLoose_EleTight->Fill(1.);}
+
+			// New DMF combinations+ isola
+			if(isMuonLoose && isEleTight && isLooseMVANew) { h_Fill_MuLoose_EleTight_LooseMVA->Fill(1.);}
+			if(isMuonLoose && isEleTight &&isMediumMVANew) { h_Fill_MuLoose_EleTight_MediumMVA->Fill(1.);}
+			if(isMuonLoose && isEleTight &&isTightMVANew) { h_Fill_MuLoose_EleTight_TightMVA->Fill(1.);}
+
+			//
+			//
+
+		}
+
+file_in->Close();
+
+	}
+file_db1.close();
+
+#ifdef THIS_IS_AN_EVENT_EXAMPLE
+	Handle<ExampleData> pIn;
+	iEvent.getByLabel("example",pIn);
+#endif
+
+#ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
+	ESHandle<SetupData> pSetup;
+	iSetup.get<SetupRecord>().get(pSetup);
+#endif
+}
+
+
+// ------------ method called once each job just before starting event loop  ------------
+	void 
+SignalStudy::beginJob()
+{
+	file_db1.open(InputFile);                                                                  
+	h_Fill_SE_Trigger = fs->make<TH1D>("h_Fill_SE_Trigger","h_Fill_SE_Trigger",2,0,2);
+	h_Fill_SP_Trigger = fs->make<TH1D>("h_Fill_SP_Trigger","h_Fill_SP_Trigger",2,0,2);
+	h_Fill_Ele115_Trigger = fs->make<TH1D>("h_Fill_Ele115_Trigger","h_Fill_Ele115_Trigger",2,0,2);
+	h_Fill_Combo_Trigger  = fs->make<TH1D>("h_Fill_Combo_Trigger","h_Fill_Combo_Trigger",2,0,2);
+	h_Fill_Filters = fs->make<TH1D>("h_Fill_Filters","h_Fill_Filters",2,0,2);
+	h_Fill_ElePtEta = fs->make<TH1D>("h_Fill_ElePtEta","h_Fill_ElePtEta",2,0,2);
+	h_Fill_EleVID = fs->make<TH1D>("h_Fill_EleVID","h_Fill_EleVID",2,0,2);
+	h_Fill_TauPtEta = fs->make<TH1D>("h_Fill_TauPtEta","h_Fill_TauPtEta",2,0,2);
+	h_Fill_DMF  = fs->make<TH1D>("h_Fill_DMF","h_Fill_DMF",2,0,2);
+	h_Fill_DMF_MuLoose = fs->make<TH1D>("h_Fill_DMF_MuLoose","h_Fill_DMF_MuLoose",2,0,2);
+	h_Fill_DMF_MuTight = fs->make<TH1D>("h_Fill_DMF_MuTight","h_Fill_DMF_MuTight",2,0,2);
+	h_Fill_DMF_MuLoose_EleLoose = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleLoose","h_Fill_DMF_MuLoose_EleLoose",2,0,2);
+	h_Fill_DMF_MuLoose_EleMedium = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleMedium","h_Fill_DMF_MuLoose_EleMedium",2,0,2);
+	h_Fill_DMF_MuLoose_EleTight = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleTight","h_Fill_DMF_MuLoose_EleTight",2,0,2);
+	h_Fill_DMF_MuLoose_EleTight_LooseMVA = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleTight_LooseMVA","h_Fill_DMF_MuLoose_EleTight_LooseMVA",2,0,2);
+	h_Fill_DMF_MuLoose_EleTight_MediumMVA  = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleTight_MediumMVA","h_Fill_DMF_MuLoose_EleTight_MediumMVA",2,0,2);
+	h_Fill_DMF_MuLoose_EleTight_TightMVA = fs->make<TH1D>("h_Fill_DMF_MuLoose_EleTight_TightMVA","h_Fill_DMF_MuLoose_EleTight_TightMVA", 2,0,2);
+
+	h_Fill_MuonLoose3 = fs->make<TH1D>("h_Fill_MuonLoose3","h_Fill_MuonLoose3",2,0,2);
+	h_Fill_MuonTight3 = fs->make<TH1D>("h_Fill_MuonTight3","h_Fill_MuonTight3",2,0,2);
+	h_Fill_MuLoose_EleLoose = fs->make<TH1D>("h_Fill_MuLoose_EleLoose","h_Fill_MuLoose_EleLoose",2,0,2);
+	h_Fill_MuLoose_EleMedium = fs->make<TH1D>("h_Fill_MuLoose_EleMedium","h_Fill_MuLoose_EleMedium",2,0,2);
+	h_Fill_MuLoose_EleTight  = fs->make<TH1D>("h_Fill_MuLoose_EleTight","h_Fill_MuLoose_EleTight",2,0,2);
+
+	h_Fill_MuLoose_EleTight_LooseMVA = fs->make<TH1D>("h_Fill_MuLoose_EleTight_LooseMVA","h_Fill_MuLoose_EleTight_LooseMVA",2,0,2);
+	h_Fill_MuLoose_EleTight_MediumMVA = fs->make<TH1D>("h_Fill_MuLoose_EleTight_MediumMVA","h_Fill_MuLoose_EleTight_MediumMVA",2,0,2);
+	h_Fill_MuLoose_EleTight_TightMVA = fs->make<TH1D>("h_Fill_MuLoose_EleTight_TightMVA","h_Fill_MuLoose_EleTight_TightMVA",2,0,2);
+}
+
+// ------------ method called once each job just after ending the event loop  ------------
+	void 
+SignalStudy::endJob() 
+{
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
+void
+SignalStudy::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+	//The following says we do not know what parameters are allowed so do no validation
+	// Please change this to state exactly what you do use, even if it is no parameters
+	edm::ParameterSetDescription desc;
+	desc.setUnknown();
+	descriptions.addDefault(desc);
+}
+
+//define this as a plug-in
+DEFINE_FWK_MODULE(SignalStudy);

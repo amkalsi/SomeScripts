@@ -1,0 +1,1 @@
+/pnfs/iihe/cms/store/user/dbeghin/RPVresonantToETau_M-1000_LLE_LQD-001_TuneCUETP8M1_13TeV-calchep-pythia8/crab_RPVresonantToETau_M-1000_LLE_LQD-001/171122_150102/0000/outfile_1.root
